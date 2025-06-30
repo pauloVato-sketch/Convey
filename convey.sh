@@ -29,7 +29,12 @@ function check_os(){
 };
 
 function check_distro(){
-	local distro=$(ls -la /etc/ | awk '$9 ~ /release$/ && $1 !~ /^l/ {print $9}' )
+	local distro=$(cat /etc/os-release | awk -F= '$1=="ID" {
+		val=$2
+		gsub(/"/, "", val)   # strip any quotes
+		print val
+		exit
+		}' /etc/os-release)
 	local pkg_mgr=""
     local install_cmd=""
 	case $distro in
