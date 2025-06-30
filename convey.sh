@@ -120,7 +120,7 @@ function check_dependencies(){
         return 0
     fi
 	# Run update if needed
-	if [ "$update_cmd" != ":" ]; then
+	if [ "$update_cmd" !~ ":" ]; then
 		echo "→ Refreshing package lists…"
 		$SUDO sh -c "$update_cmd"
 	fi
