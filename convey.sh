@@ -39,26 +39,28 @@ function check_distro(){
     local install_cmd=""
 	case $distro in
 		ubuntu*|debian*)
-        		pkg_mgr="apt"
-	        	install_cmd="$SUDO apt update && sudo apt install -y"
+        		pkg_mgr="apt-get"
+				update_cmd="$pkg_mgr update"
+	        	install_cmd="$SUDO $pkg_mgr install -y"
         	;;
     	centos*|rhel*|fedora*|rocky*|*alma*)
        			if command -v dnf >/dev/null 2>&1; then
         	    		pkg_mgr="dnf"
-        		    	install_cmd="$SUDO dnf install -y"
+        		    	install_cmd="$SUDO $pkg_mgr install -y"
        			else
         	    		pkg_mgr="yum"
-        	    		install_cmd="$SUDO yum install -y"
+        	    		install_cmd="$SUDO $pkg_mgr install -y"
         		fi
 			#echo "Use: $install_cmd"
         	;;
     	arch*|manjaro*)
         		pkg_mgr="pacman"
-        		install_cmd="$SUDO pacman -Syu --noconfirm"
+        		install_cmd="$SUDO $pkg_mgr -Syu --noconfirm"
         	;;
    		alpine*)
+		    	update_cmd=":"
         		pkg_mgr="apk"
-        		install_cmd="$SUDO apk add"
+        		install_cmd="$SUDO $pkg_mgr add"
         	;;
     		*)
         		echo "Unsupported OS: $distro" >&2;
@@ -165,6 +167,13 @@ if    command -v sudo >/dev/null 2>&1 \
 fi
 
 IFS=';' read -r distro pkg_mgr install_cmd <<< "$(check_distro)"
+
+# Run update if needed
+if [ "$UPDATE_CMD" != ":" ]; then
+  echo "→ Refreshing package lists…"
+  $SUDO sh -c "$UPDATE_CMD"
+fi
+
 
 if ! check_dependencies; then
     echo "Dependencies error. Exiting...";
