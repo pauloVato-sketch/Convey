@@ -67,7 +67,7 @@ function check_distro(){
         		exit 1
         	;;
 	esac
-    echo "$distro;$pkg_mgr;$install_cmd"
+    echo "$distro;$pkg_mgr;$install_cmd;$update_cmd"
 };
 
 function generate_sudoers_rule() {
@@ -120,7 +120,7 @@ function check_dependencies(){
         return 0
     fi
 	# Run update if needed
-	if [ "$update_cmd" !~ ":" ]; then
+	if [ "$update_cmd" != ":" ]; then
 		echo "→ Refreshing package lists…"
 		$SUDO sh -c "$update_cmd"
 	fi
@@ -214,7 +214,7 @@ else
   SUDO=""
 fi
 
-IFS=';' read -r distro pkg_mgr install_cmd <<< "$(check_distro)"
+IFS=';' read -r distro pkg_mgr install_cmd update_cmd <<< "$(check_distro)"
 
 
 if ! check_dependencies; then
