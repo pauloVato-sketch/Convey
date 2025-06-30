@@ -83,10 +83,11 @@ jobs:
 
       - name: Ensure conversion script is executable
         run: chmod +x convey.sh
-      - name: Debug ls
-        run: |
-          echo "Working dir: $(pwd)"
-          ls -l .
+        
+      - name: Install bash on Alpine
+        if: matrix.image == 'alpine:latest'
+        run: apk add --no-cache bash
+        
       - name: Run conversion script on fixtures
         run: |
           set -euo pipefail
