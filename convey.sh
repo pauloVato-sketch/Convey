@@ -94,18 +94,27 @@ EOF
 };
 
 
+# Only use $SUDO if we're non-root *and* sudo exists
+if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+  SUDO="sudo"
+else
+  SUDO=""
+fi
+
+# Get package manager commands based on distro
+IFS=';' read -r distro pkg_mgr install_cmd update_cmd <<< "$(check_distro)"
+
 function check_dependencies(){
-    os_filtered=$(echo "${OSTYPE//[0-9]*$/}");
-    lo_os="$(echo "$os_filtered" | tr '[:upper:]' '[:lower:]')";
-    check_os "$lo_os" || return 1;
+    os_filtered=$(echo "${OSTYPE//[0-9]*$/}")
+    lo_os="$(echo "$os_filtered" | tr '[:upper:]' '[:lower:]')"
+    check_os "$lo_os" || return 1
     echo "Detected OS=$OS"
-	echo "Distro: $distro"
+    echo "Distro: $distro"
+
     # collect missing deps
     missing=()
     while IFS= read -r dep; do
-        # skip blank lines and comments
         [[ -z "$dep" || "$dep" =~ ^# ]] && continue
-
         if command -v "$dep" >/dev/null 2>&1; then
             echo "✔ $dep is already installed."
         else
@@ -114,107 +123,101 @@ function check_dependencies(){
         fi
     done < deps
 
-    # nothing to do?
     if [ ${#missing[@]} -eq 0 ]; then
         echo "All dependencies are satisfied."
         return 0
     fi
-	# Run update if needed
-	if [ "$update_cmd" != ":" ]; then
-		echo "→ Refreshing package lists…"
-		$SUDO sh -c "$update_cmd"
-	fi
-    # macOS: Homebrew doesn’t need sudoers hacks
+
     if [ "$OS" = "MacOS" ]; then
         echo "Installing missing deps with brew: ${missing[*]}"
         brew update
         brew install "${missing[@]}"
-      # >>>>>>>>>>>>>>>>>> Se for Red Hat–like, instala de forma customizada <<<<<<<<<<<<<<
     elif [ "$OS" = "Linux" ]; then
-		case "$distro" in
-    	*centos*|*redhat*|*fedora*|*rocky*|*almalinux*)
-            echo "Installing missing deps on $OS with $pkg_mgr: ${missing[*]}"
+        case "$distro" in
+            *centos*|*redhat*|*fedora*|*rocky*|*almalinux*)
+                echo "Installing missing deps on $OS with $pkg_mgr: ${missing[*]}"
 
-			# Pergunta se deve criar regra sudoers 
-			read -rp "Create sudoers entry for passwordless installs? [y/N] " ans
-			if [[ "$ans" =~ ^[Yy]$ ]]; then
-				generate_sudoers_rule "$install_cmd" | $SUDO tee /etc/sudoers.d/$(whoami)-pkgmgr
-				$SUDO chmod 440 /etc/sudoers.d/$(whoami)-pkgmgr
-				echo "Verify syntax with: $SUDO visudo -c"
-			fi
+                read -rp "Create sudoers entry for passwordless installs? [y/N] " ans
+                if echo "$ans" | grep -qi '^y'; then
+                    generate_sudoers_rule "$install_cmd" | $SUDO tee /etc/sudoers.d/$(whoami)-pkgmgr
+                    $SUDO chmod 440 /etc/sudoers.d/$(whoami)-pkgmgr
+                    echo "Verify syntax with: $SUDO visudo -c"
+                fi
 
-			# Fix: install epel-release if figlet is missing
-			if [[ " ${missing[*]} " =~ " figlet " ]]; then
-				echo "→ Installing epel-release for figlet support"
-				$SUDO "$pkg_mgr" install -y epel-release
-			fi
+                if printf '%s\n' "${missing[@]}" | grep -q '^figlet$'; then
+                    echo "→ Installing epel-release for figlet support"
+                    $SUDO "$pkg_mgr" install -y epel-release
+                fi
 
-			# Fix: ensure curl or wget exists
-			if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
-				echo "→ Installing curl for downloading yq"
-				$SUDO "$pkg_mgr" install -y curl
-			fi
+                if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+                    echo "→ Installing curl for downloading yq"
+                    $SUDO "$pkg_mgr" install -y curl
+                fi
 
-			# Para cada pacote faltante...
-			for pkg in "${missing[@]}"; do
-				if [[ $pkg == "yq" ]]; then
-					echo "→ Installing Mike Farah's yq from GitHub..."
-					if command -v curl >/dev/null 2>&1; then
-						$SUDO curl -fsSL -o /usr/local/bin/yq \
-						https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-					else
-						$SUDO wget -qO /usr/local/bin/yq \
-						https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-					fi
-					$SUDO chmod +x /usr/local/bin/yq
-				else
-					echo "→ ${SUDO:+$SUDO }$pkg_mgr install -y $pkg"
-					$SUDO "$pkg_mgr" install -y "$pkg"
-				fi
-			done
-		;;
-		*debian*|*ubuntu*)
-			echo "→ Refreshing package lists…"
-			$SUDO apt-get update
+                for pkg in "${missing[@]}"; do
+                    if [ "$pkg" = "yq" ]; then
+                        echo "→ Installing Mike Farah's yq from GitHub..."
+                        if command -v curl >/dev/null 2>&1; then
+                            $SUDO curl -fsSL -o /usr/local/bin/yq \
+                              https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+                        else
+                            $SUDO wget -qO /usr/local/bin/yq \
+                              https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+                        fi
+                        $SUDO chmod +x /usr/local/bin/yq
+                    else
+                        echo "→ ${SUDO:+$SUDO }$pkg_mgr install -y $pkg"
+                        $SUDO "$pkg_mgr" install -y "$pkg"
+                    fi
+                done
+                ;;
+            *debian*|*ubuntu*)
+                if [ -n "$update_cmd" ] && [ "$update_cmd" != ":" ]; then
+                    echo "→ Refreshing package lists…"
+                    $SUDO sh -c "$update_cmd"
+                fi
 
-			# Separate yq from other deps
-			installable=()
-			for pkg in "${missing[@]}"; do
-				[ "$pkg" != "yq" ] && installable+=("$pkg")
-			done
+                installable=()
+                for pkg in "${missing[@]}"; do
+                    [ "$pkg" != "yq" ] && installable+=("$pkg")
+                done
 
-			# Install jq, figlet, etc.
-			if [ "${#installable[@]}" -gt 0 ]; then
-				echo "→ Installing with apt-get: ${installable[*]}"
-				$SUDO apt-get install -y "${installable[@]}"
-			fi
+                if [ "${#installable[@]}" -gt 0 ]; then
+                    echo "→ Installing with apt-get: ${installable[*]}"
+                    $SUDO apt-get install -y "${installable[@]}"
+                fi
 
-			# Install yq manually (Mike Farah’s Go-based yq)
-			if printf '%s\n' "${missing[@]}" | grep -q '^yq$'; then
-				echo "→ Installing yq from GitHub..."
-				YQ_URL="https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64"
-				$SUDO curl -fsSL "$YQ_URL" -o /usr/local/bin/yq
-				$SUDO chmod +x /usr/local/bin/yq
-			fi
-			;;
-		esac
+                if printf '%s\n' "${missing[@]}" | grep -q '^yq$'; then
+                    echo "→ Installing yq from GitHub..."
+                    $SUDO curl -fsSL -o /usr/local/bin/yq \
+                      https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+                    $SUDO chmod +x /usr/local/bin/yq
+                fi
+                ;;
+            *alpine*)
+                # No-op update already handled by update_cmd=":"
+                installable=()
+                for pkg in "${missing[@]}"; do
+                    [ "$pkg" != "yq" ] && installable+=("$pkg")
+                done
+
+                if [ "${#installable[@]}" -gt 0 ]; then
+                    echo "→ Installing with apk: ${installable[*]}"
+                    $SUDO apk add --no-cache "${installable[@]}"
+                fi
+
+                if printf '%s\n' "${missing[@]}" | grep -q '^yq$'; then
+                    echo "→ Installing yq from GitHub..."
+                    $SUDO curl -fsSL -o /usr/local/bin/yq \
+                      https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+                    $SUDO chmod +x /usr/local/bin/yq
+                fi
+                ;;
+        esac
     fi
-        # outras distribuições Linux...
-    #    echo "Installing missing deps with: $pkg_mgr ${missing[*]}"
-    #    read -r -a install_cmd <<< "$install_cmd"
-    #    "${install_cmd[@]}" "${missing[@]}"
-    #fi
 
     return 0
-};
-# Only use $SUDO if we're non-root *and* $SUDO exists
-if [ "$(id -u)" -ne 0 ] && command -v $SUDO >/dev/null 2>&1; then
-  SUDO="$SUDO"
-else
-  SUDO=""
-fi
-
-IFS=';' read -r distro pkg_mgr install_cmd update_cmd <<< "$(check_distro)"
+}
 
 
 if ! check_dependencies; then
