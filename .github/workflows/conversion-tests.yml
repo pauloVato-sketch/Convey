@@ -114,7 +114,7 @@ jobs:
           for input in envsample.env ymlsample.yaml xmlsample.xml jsonsample.json; do
             base="${input%.*}"
             for fmt in env yaml xml json; do
-              ./convey.sh "$input" "$fmt"
+              bash convey.sh "$input" "$fmt"
               if [ ! -f "$base.$fmt" ]; then
                 echo "Conversion failed: $input -> $fmt"
                 exit 1
