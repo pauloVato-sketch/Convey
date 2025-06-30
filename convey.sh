@@ -159,11 +159,11 @@ function check_dependencies(){
 
     return 0
 };
-# If we have sudo and we're not root, use it; otherwise no prefix.
-SUDO=""
-if    command -v sudo >/dev/null 2>&1 \
-   && [ "$EUID" -ne 0 ]; then
+# Only use sudo if we're non-root *and* sudo exists
+if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
   SUDO="sudo"
+else
+  SUDO=""
 fi
 
 IFS=';' read -r distro pkg_mgr install_cmd <<< "$(check_distro)"
