@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/env bash
 
 # First thing, check for dependencies
 # jq, yq, figlet, my exe    
@@ -35,25 +35,25 @@ function check_distro(){
 	case $distro in
 		ubuntu*|debian*)
         		pkg_mgr="apt"
-	        	install_cmd="sudo apt update && sudo apt install -y"
+	        	install_cmd="$SUDO apt update && sudo apt install -y"
         	;;
     	centos*|rhel*|fedora*|rocky*|*alma*)
        			if command -v dnf >/dev/null 2>&1; then
         	    		pkg_mgr="dnf"
-        		    	install_cmd="sudo dnf install -y"
+        		    	install_cmd="$SUDO dnf install -y"
        			else
         	    		pkg_mgr="yum"
-        	    		install_cmd="sudo yum install -y"
+        	    		install_cmd="$SUDO yum install -y"
         		fi
 			#echo "Use: $install_cmd"
         	;;
     	arch*|manjaro*)
         		pkg_mgr="pacman"
-        		install_cmd="sudo pacman -Syu --noconfirm"
+        		install_cmd="$SUDO pacman -Syu --noconfirm"
         	;;
    		alpine*)
         		pkg_mgr="apk"
-        		install_cmd="sudo apk add"
+        		install_cmd="$SUDO apk add"
         	;;
     		*)
         		echo "Unsupported OS: $distro" >&2;
@@ -152,6 +152,12 @@ function check_dependencies(){
 
     return 0
 };
+# If we have sudo and we're not root, use it; otherwise no prefix.
+SUDO=""
+if    command -v sudo >/dev/null 2>&1 \
+   && [ "$EUID" -ne 0 ]; then
+  SUDO="sudo"
+fi
 
 IFS=';' read -r distro pkg_mgr install_cmd <<< "$(check_distro)"
 
