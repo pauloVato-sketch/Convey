@@ -130,7 +130,7 @@ function check_dependencies(){
         brew update
         brew install "${missing[@]}"
       # >>>>>>>>>>>>>>>>>> Se for Red Hat–like, instala de forma customizada <<<<<<<<<<<<<<
-    elif ["$OS" = "Linux" ]; then
+    elif [ "$OS" = "Linux" ]; then
 		case "$distro" in
     	*centos*|*redhat*|*fedora*|*rocky*|*almalinux*)
             echo "Installing missing deps on $OS with $pkg_mgr: ${missing[*]}"
