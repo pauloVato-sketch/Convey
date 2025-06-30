@@ -76,9 +76,9 @@ function generate_sudoers_rule() {
 	local inst_cmd="$1"
     user=$(whoami)
 
-    # You should already have $inst_cmd set, e.g. "sudo dnf install -y"
+    # You should already have $inst_cmd set, e.g. "$SUDO dnf install -y"
     # Extract package manager command (e.g. "dnf") from $inst_cmd
-    # Here we extract the second word from the command string (assumes format: sudo <pkg_mgr> install -y)
+    # Here we extract the second word from the command string (assumes format: $SUDO <pkg_mgr> install -y)
     local pkg_mgr=$(echo "$inst_cmd" | awk '{print $2}')
     pkg_mgr_path=$(command -v "$pkg_mgr")
 
@@ -132,21 +132,21 @@ function check_dependencies(){
         # Pergunta se deve criar regra sudoers 
         read -rp "Create sudoers entry for passwordless installs? [y/N] " ans
         if [[ "$ans" =~ ^[Yy]$ ]]; then
-            generate_sudoers_rule "$install_cmd" | sudo tee /etc/sudoers.d/$(whoami)-pkgmgr
-            sudo chmod 440 /etc/sudoers.d/$(whoami)-pkgmgr
-            echo "Verify syntax with: sudo visudo -c"
+            generate_sudoers_rule "$install_cmd" | $SUDO tee /etc/sudoers.d/$(whoami)-pkgmgr
+            $SUDO chmod 440 /etc/sudoers.d/$(whoami)-pkgmgr
+            echo "Verify syntax with: $SUDO visudo -c"
         fi
 
         # Para cada pacote faltante...
         for pkg in "${missing[@]}"; do
             if [[ $pkg == "yq" ]]; then
                 echo "→ Installing Mike Farah's yq from GitHub..."
-                sudo wget -qO /usr/local/bin/yq \
+                $SUDO wget -qO /usr/local/bin/yq \
                   https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-                sudo chmod +x /usr/local/bin/yq
+                $SUDO chmod +x /usr/local/bin/yq
             else
-                echo "→ sudo $pkg_mgr install -y $pkg"
-                sudo "$pkg_mgr" install -y "$pkg"
+                echo "→ $SUDO $pkg_mgr install -y $pkg"
+                $SUDO "$pkg_mgr" install -y "$pkg"
             fi
         done
 
@@ -159,9 +159,9 @@ function check_dependencies(){
 
     return 0
 };
-# Only use sudo if we're non-root *and* sudo exists
-if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
-  SUDO="sudo"
+# Only use $SUDO if we're non-root *and* $SUDO exists
+if [ "$(id -u)" -ne 0 ] && command -v $SUDO >/dev/null 2>&1; then
+  SUDO="$SUDO"
 else
   SUDO=""
 fi
