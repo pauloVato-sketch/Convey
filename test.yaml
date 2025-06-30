@@ -1,0 +1,8 @@
+username: Pavlov
+password: Testing
+arr:
+  - Red
+  - Black
+  - White
+internal_obj:
+  message: Say hi to my little friend!

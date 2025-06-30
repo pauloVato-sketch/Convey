@@ -1,0 +1,122 @@
+name: Conversion Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # macOS job
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Ensure conversion script is executable
+        run: chmod +x convey.sh
+
+      - name: Run conversion script on fixtures
+        run: |
+          set -euo pipefail
+          # Create fixtures
+          cat <<EOF > envsample.env
+          DB.HOST=localhost
+          DB.PORT=5432
+          API.KEY=abc123
+          EOF
+          cat <<EOF > ymlsample.yaml
+          DB:
+            HOST: localhost
+            PORT: 5432
+          API:
+            KEY: abc123
+          EOF
+          cat <<EOF > xmlsample.xml
+          <root>
+            <DB>
+              <HOST>localhost</HOST>
+              <PORT>5432</PORT>
+            </DB>
+            <API>
+              <KEY>abc123</KEY>
+            </API>
+          </root>
+          EOF
+          cat <<EOF > jsonsample.json
+          { "DB": { 
+              "HOST": "localhost",
+              "PORT": 5432 
+            }, 
+            "API": { 
+              "KEY": "abc123" 
+            } 
+          }
+          EOF
+
+          # Test all formats via convey.sh (script handles installation)
+          inputs=(envsample.env ymlsample.yaml xmlsample.xml jsonsample.json)
+          formats=(env yaml xml json)
+          for input in "${inputs[@]}"; do
+            base="${input%.*}"
+            for fmt in "${formats[@]}"; do
+              ./convey.sh "$input" "$fmt"
+              if [ ! -f "$base.$fmt" ]; then
+                echo "Conversion failed: $input -> $fmt"
+                exit 1
+              fi
+            done
+          done
+
+  # Linux matrix for Debian, Fedora, Alpine
+  test-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: [debian:latest, fedora:latest, alpine:latest]
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Ensure conversion script is executable
+        run: chmod +x convey.sh
+
+      - name: Run conversion script on fixtures
+        run: |
+          set -euo pipefail
+          # Create fixtures with distinct names
+          cat <<EOF > envsample.env
+          DB.HOST=localhost
+          DB.PORT=5432
+          API.KEY=abc123
+          EOF
+          cat <<EOF > ymlsample.yaml
+          DB:
+            HOST: localhost
+            PORT: 5432
+          API:
+            KEY: abc123
+          EOF
+          cat <<EOF > xmlsample.xml
+          <root><DB><HOST>localhost</HOST><PORT>5432</PORT></DB><API><KEY>abc123</KEY></API></root>
+          EOF
+          cat <<EOF > jsonsample.json
+          { "DB": { "HOST": "localhost", "PORT": 5432 }, "API": { "KEY": "abc123" } }
+          EOF
+
+          # Test all formats via convey.sh
+          inputs=(envsample.env ymlsample.yaml xmlsample.xml jsonsample.json)
+          formats=(env yaml xml json)
+          for input in "${inputs[@]}"; do
+            base="${input%.*}"
+            for fmt in "${formats[@]}"; do
+              ./convey.sh "$input" "$fmt"
+              if [ ! -f "$base.$fmt" ]; then
+                echo "Conversion failed: $input -> $fmt"
+                exit 1
+              fi
+            done
+          done
