@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # First thing, check for dependencies
-# jq, yq, figlet, my exe    
+# jq, yq, figlet   
 #
 #
 
@@ -31,7 +31,7 @@ function check_os(){
 function check_distro(){
 	local distro=$(cat /etc/os-release | awk -F= '$1=="ID" {
 		val=$2
-		gsub(/"/, "", val)   # strip any quotes
+		gsub(/"/, "", val)  
 		print val
 		exit
 		}' /etc/os-release)
@@ -76,9 +76,6 @@ function generate_sudoers_rule() {
 	local inst_cmd="$1"
     user=$(whoami)
 
-    # You should already have $inst_cmd set, e.g. "$SUDO dnf install -y"
-    # Extract package manager command (e.g. "dnf") from $inst_cmd
-    # Here we extract the second word from the command string (assumes format: $SUDO <pkg_mgr> install -y)
     local pkg_mgr=$(echo "$inst_cmd" | awk '{print $2}')
     pkg_mgr_path=$(command -v "$pkg_mgr")
 
@@ -111,7 +108,7 @@ function check_dependencies(){
     echo "Detected OS=$OS"
     echo "Distro: $distro"
 
-    # collect missing deps
+    # Collect missing deps
     missing=()
     while IFS= read -r dep; do
         [[ -z "$dep" || "$dep" =~ ^# ]] && continue
@@ -141,7 +138,7 @@ function check_dependencies(){
                 if echo "$ans" | grep -qi '^y'; then
                     generate_sudoers_rule "$install_cmd" | $SUDO tee /etc/sudoers.d/$(whoami)-pkgmgr
                     $SUDO chmod 440 /etc/sudoers.d/$(whoami)-pkgmgr
-                    echo "Verify syntax with: $SUDO visudo -c"
+                    # echo "Verify syntax with: $SUDO visudo -c"
                 fi
 
                 if printf '%s\n' "${missing[@]}" | grep -q '^figlet$'; then
@@ -203,7 +200,6 @@ function check_dependencies(){
 				fi
                 ;;
             *alpine*)
-                # No-op update already handled by update_cmd=":"
                 installable=()
                 for pkg in "${missing[@]}"; do
                     [ "$pkg" != "yq" ] && installable+=("$pkg")
@@ -350,5 +346,4 @@ case $input_ftype in
 			;;
 		esac
 	;;
-
 esac
