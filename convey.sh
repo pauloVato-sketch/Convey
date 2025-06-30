@@ -187,12 +187,20 @@ function check_dependencies(){
                     $SUDO apt-get install -y "${installable[@]}"
                 fi
 
-                if printf '%s\n' "${missing[@]}" | grep -q '^yq$'; then
-                    echo "→ Installing yq from GitHub..."
-                    $SUDO curl -fsSL -o /usr/local/bin/yq \
-                      https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-                    $SUDO chmod +x /usr/local/bin/yq
-                fi
+				if printf '%s\n' "${missing[@]}" | grep -q '^yq$'; then
+					if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+						echo "→ Installing curl for downloading yq"
+						$SUDO apt-get install -y curl
+					fi
+
+					echo "→ Installing yq from GitHub..."
+					if command -v curl >/dev/null 2>&1; then
+						$SUDO curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+					else
+						$SUDO wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+					fi
+					$SUDO chmod +x /usr/local/bin/yq
+				fi
                 ;;
             *alpine*)
                 # No-op update already handled by update_cmd=":"
