@@ -206,12 +206,20 @@ function check_dependencies(){
                     $SUDO apk add --no-cache "${installable[@]}"
                 fi
 
-                if printf '%s\n' "${missing[@]}" | grep -q '^yq$'; then
-                    echo "→ Installing yq from GitHub..."
-                    $SUDO curl -fsSL -o /usr/local/bin/yq \
-                      https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-                    $SUDO chmod +x /usr/local/bin/yq
-                fi
+				if printf '%s\n' "${missing[@]}" | grep -q '^yq$'; then
+					if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+						echo "→ Installing curl for downloading yq"
+						$SUDO $pkg_mgr add --no-cache curl
+					fi
+
+					echo "→ Installing yq from GitHub..."
+					if command -v curl >/dev/null 2>&1; then
+						$SUDO curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+					else
+						$SUDO wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+					fi
+					$SUDO chmod +x /usr/local/bin/yq
+				fi
                 ;;
         esac
     fi
