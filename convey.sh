@@ -18,10 +18,10 @@ function check_os(){
         ;;
         darwin*) OS="MacOS";
         ;;
-        msys*) OS="Windows";
-        ;;
-        mingw*) OS="Windows";
-        ;;
+        #msys*) OS="Windows";
+        #;;
+        #mingw*) OS="Windows";
+        #;;
         *) OS="UNKNOWN:$1"; exit 1;
         ;;
     esac
@@ -30,12 +30,14 @@ function check_os(){
 
 function check_distro(){
 	local distro=$(ls -la /etc/ | awk '$9 ~ /release$/ && $1 !~ /^l/ {print $9}' )
+	local pkg_mgr=""
+    local install_cmd=""
 	case $distro in
 		ubuntu*|debian*)
         		pkg_mgr="apt"
 	        	install_cmd="sudo apt update && sudo apt install -y"
         	;;
-    	centos*|rhel*|fedora*|rocky*|almalinux*)
+    	centos*|rhel*|fedora*|rocky*|*alma*)
        			if command -v dnf >/dev/null 2>&1; then
         	    		pkg_mgr="dnf"
         		    	install_cmd="sudo dnf install -y"
@@ -58,13 +60,13 @@ function check_distro(){
         		exit 1
         	;;
 	esac
-	echo "$install_cmd"
+    echo "$distro;$pkg_mgr;$install_cmd"
 };
 
 function generate_sudoers_rule() {
     local user
     local pkg_mgr_path
-
+	local inst_cmd="$1"
     user=$(whoami)
 
     # You should already have $inst_cmd set, e.g. "sudo dnf install -y"
@@ -90,7 +92,7 @@ function check_dependencies(){
     lo_os="$(echo "$os_filtered" | tr '[:upper:]' '[:lower:]')";
     check_os "$lo_os" || return 1;
     echo "Detected OS=$OS"
-
+	echo "Distro: $distro"
     # collect missing deps
     missing=()
     while IFS= read -r dep; do
@@ -116,24 +118,42 @@ function check_dependencies(){
         echo "Installing missing deps with brew: ${missing[*]}"
         brew update
         brew install "${missing[@]}"
-    else
-        # optionally set up passwordless sudo for package installs
+      # >>>>>>>>>>>>>>>>>> Se for Red Hat–like, instala de forma customizada <<<<<<<<<<<<<<
+    elif [[ "$OS" = "Linux" && "$distro" =~ ^(.*centos.*|.*redhat.*|.*fedora.*|.*rocky.*|.*almalinux.*)$ ]]; then
+        echo "Installing missing deps on $OS with $pkg_mgr: ${missing[*]}"
+
+        # Pergunta se deve criar regra sudoers 
         read -rp "Create sudoers entry for passwordless installs? [y/N] " ans
         if [[ "$ans" =~ ^[Yy]$ ]]; then
-            sudoers_file="/etc/sudoers.d/$(whoami)-pkgmgr"
-            echo "Creating $sudoers_file..."
-            generate_sudoers_rule | sudo tee "$sudoers_file" >/dev/null
+            generate_sudoers_rule "$install_cmd" | sudo tee /etc/sudoers.d/$(whoami)-pkgmgr
+            sudo chmod 440 /etc/sudoers.d/$(whoami)-pkgmgr
             echo "Verify syntax with: sudo visudo -c"
         fi
 
-        echo "Installing missing deps with: $PKGMGR ${missing[*]}"
-        # split PKGMGR into array to handle sudo + flags
-        read -r -a mgr_cmd <<< "$PKGMGR"
-        "${mgr_cmd[@]}" "${missing[@]}"
+        # Para cada pacote faltante...
+        for pkg in "${missing[@]}"; do
+            if [[ $pkg == "yq" ]]; then
+                echo "→ Installing Mike Farah's yq from GitHub..."
+                sudo wget -qO /usr/local/bin/yq \
+                  https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+                sudo chmod +x /usr/local/bin/yq
+            else
+                echo "→ sudo $pkg_mgr install -y $pkg"
+                sudo "$pkg_mgr" install -y "$pkg"
+            fi
+        done
+
+    else
+        # outras distribuições Linux...
+        echo "Installing missing deps with: $pkg_mgr ${missing[*]}"
+        read -r -a install_cmd <<< "$install_cmd"
+        "${install_cmd[@]}" "${missing[@]}"
     fi
 
     return 0
 };
+
+IFS=';' read -r distro pkg_mgr install_cmd <<< "$(check_distro)"
 
 if ! check_dependencies; then
     echo "Dependencies error. Exiting...";
@@ -145,11 +165,12 @@ if [ $# -eq 0 ]; then
     print_usage;
 fi
 
+
 figlet "Convey" || exit 1
 input_fname="${1%.*}"
 # echo "$input_fname"
 input_ftype="${1##*.}"
-target_ftype="$2"
+target_ftype="${2#.}"
 # echo "$input_ftype"
 # echo "$target_ftype"
 target="$input_fname"."$target_ftype"
