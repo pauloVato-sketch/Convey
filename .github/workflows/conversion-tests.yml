@@ -107,16 +107,15 @@ jobs:
           { "DB": { "HOST": "localhost", "PORT": 5432 }, "API": { "KEY": "abc123" } }
           EOF
 
-          # Test all formats via convey.sh
-          inputs=(envsample.env ymlsample.yaml xmlsample.xml jsonsample.json)
-          formats=(env yaml xml json)
-          for input in "${inputs[@]}"; do
+          # Test all formats via convert.sh using POSIX loops
+          for input in envsample.env ymlsample.yaml xmlsample.xml jsonsample.json; do
             base="${input%.*}"
-            for fmt in "${formats[@]}"; do
-              ./convey.sh "$input" "$fmt"
+            for fmt in env yaml xml json; do
+              ./convert.sh "$input" "$fmt"
               if [ ! -f "$base.$fmt" ]; then
                 echo "Conversion failed: $input -> $fmt"
                 exit 1
               fi
             done
           done
+
