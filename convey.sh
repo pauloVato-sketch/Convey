@@ -173,13 +173,37 @@ function check_dependencies(){
 				fi
 			done
 		;;
+		*debian*|*ubuntu*)
+			echo "→ Refreshing package lists…"
+			$SUDO apt-get update
+
+			# Separate yq from other deps
+			installable=()
+			for pkg in "${missing[@]}"; do
+				[ "$pkg" != "yq" ] && installable+=("$pkg")
+			done
+
+			# Install jq, figlet, etc.
+			if [ "${#installable[@]}" -gt 0 ]; then
+				echo "→ Installing with apt-get: ${installable[*]}"
+				$SUDO apt-get install -y "${installable[@]}"
+			fi
+
+			# Install yq manually (Mike Farah’s Go-based yq)
+			if printf '%s\n' "${missing[@]}" | grep -q '^yq$'; then
+				echo "→ Installing yq from GitHub..."
+				YQ_URL="https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64"
+				$SUDO curl -fsSL "$YQ_URL" -o /usr/local/bin/yq
+				$SUDO chmod +x /usr/local/bin/yq
+			fi
+			;;
 		esac
-    else
-        # outras distribuições Linux...
-        echo "Installing missing deps with: $pkg_mgr ${missing[*]}"
-        read -r -a install_cmd <<< "$install_cmd"
-        "${install_cmd[@]}" "${missing[@]}"
     fi
+        # outras distribuições Linux...
+    #    echo "Installing missing deps with: $pkg_mgr ${missing[*]}"
+    #    read -r -a install_cmd <<< "$install_cmd"
+    #    "${install_cmd[@]}" "${missing[@]}"
+    #fi
 
     return 0
 };
