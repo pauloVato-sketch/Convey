@@ -119,7 +119,11 @@ function check_dependencies(){
         echo "All dependencies are satisfied."
         return 0
     fi
-
+	# Run update if needed
+	if [ "$UPDATE_CMD" != ":" ]; then
+	echo "→ Refreshing package lists…"
+	$SUDO sh -c "$UPDATE_CMD"
+	fi
     # macOS: Homebrew doesn’t need sudoers hacks
     if [ "$OS" = "MacOS" ]; then
         echo "Installing missing deps with brew: ${missing[*]}"
@@ -167,12 +171,6 @@ else
 fi
 
 IFS=';' read -r distro pkg_mgr install_cmd <<< "$(check_distro)"
-
-# Run update if needed
-if [ "$UPDATE_CMD" != ":" ]; then
-  echo "→ Refreshing package lists…"
-  $SUDO sh -c "$UPDATE_CMD"
-fi
 
 
 if ! check_dependencies; then
