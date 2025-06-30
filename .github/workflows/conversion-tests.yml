@@ -89,6 +89,7 @@ jobs:
         run: apk add --no-cache bash
         
       - name: Run conversion script on fixtures
+        shell: bash {0}
         run: |
           set -euo pipefail
           # Create fixtures with distinct names
