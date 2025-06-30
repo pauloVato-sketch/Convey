@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
 # First thing, check for dependencies
 # jq, yq, figlet, my exe    
