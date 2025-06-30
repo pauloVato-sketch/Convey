@@ -120,9 +120,9 @@ function check_dependencies(){
         return 0
     fi
 	# Run update if needed
-	if [ "$UPDATE_CMD" != ":" ]; then
-	echo "→ Refreshing package lists…"
-	$SUDO sh -c "$UPDATE_CMD"
+	if [ "$update_cmd" != ":" ]; then
+		echo "→ Refreshing package lists…"
+		$SUDO sh -c "$update_cmd"
 	fi
     # macOS: Homebrew doesn’t need sudoers hacks
     if [ "$OS" = "MacOS" ]; then
@@ -130,30 +130,50 @@ function check_dependencies(){
         brew update
         brew install "${missing[@]}"
       # >>>>>>>>>>>>>>>>>> Se for Red Hat–like, instala de forma customizada <<<<<<<<<<<<<<
-    elif [[ "$OS" = "Linux" && "$distro" =~ ^(.*centos.*|.*redhat.*|.*fedora.*|.*rocky.*|.*almalinux.*)$ ]]; then
-        echo "Installing missing deps on $OS with $pkg_mgr: ${missing[*]}"
+    elif ["$OS" = "Linux" ]; then
+		case "$distro" in
+    	*centos*|*redhat*|*fedora*|*rocky*|*almalinux*)
+            echo "Installing missing deps on $OS with $pkg_mgr: ${missing[*]}"
 
-        # Pergunta se deve criar regra sudoers 
-        read -rp "Create sudoers entry for passwordless installs? [y/N] " ans
-        if [[ "$ans" =~ ^[Yy]$ ]]; then
-            generate_sudoers_rule "$install_cmd" | $SUDO tee /etc/sudoers.d/$(whoami)-pkgmgr
-            $SUDO chmod 440 /etc/sudoers.d/$(whoami)-pkgmgr
-            echo "Verify syntax with: $SUDO visudo -c"
-        fi
+			# Pergunta se deve criar regra sudoers 
+			read -rp "Create sudoers entry for passwordless installs? [y/N] " ans
+			if [[ "$ans" =~ ^[Yy]$ ]]; then
+				generate_sudoers_rule "$install_cmd" | $SUDO tee /etc/sudoers.d/$(whoami)-pkgmgr
+				$SUDO chmod 440 /etc/sudoers.d/$(whoami)-pkgmgr
+				echo "Verify syntax with: $SUDO visudo -c"
+			fi
 
-        # Para cada pacote faltante...
-        for pkg in "${missing[@]}"; do
-            if [[ $pkg == "yq" ]]; then
-                echo "→ Installing Mike Farah's yq from GitHub..."
-                $SUDO wget -qO /usr/local/bin/yq \
-                  https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-                $SUDO chmod +x /usr/local/bin/yq
-            else
-                echo "→ $SUDO $pkg_mgr install -y $pkg"
-                $SUDO "$pkg_mgr" install -y "$pkg"
-            fi
-        done
+			# Fix: install epel-release if figlet is missing
+			if [[ " ${missing[*]} " =~ " figlet " ]]; then
+				echo "→ Installing epel-release for figlet support"
+				$SUDO "$pkg_mgr" install -y epel-release
+			fi
 
+			# Fix: ensure curl or wget exists
+			if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+				echo "→ Installing curl for downloading yq"
+				$SUDO "$pkg_mgr" install -y curl
+			fi
+
+			# Para cada pacote faltante...
+			for pkg in "${missing[@]}"; do
+				if [[ $pkg == "yq" ]]; then
+					echo "→ Installing Mike Farah's yq from GitHub..."
+					if command -v curl >/dev/null 2>&1; then
+						$SUDO curl -fsSL -o /usr/local/bin/yq \
+						https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+					else
+						$SUDO wget -qO /usr/local/bin/yq \
+						https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+					fi
+					$SUDO chmod +x /usr/local/bin/yq
+				else
+					echo "→ ${SUDO:+$SUDO }$pkg_mgr install -y $pkg"
+					$SUDO "$pkg_mgr" install -y "$pkg"
+				fi
+			done
+		;;
+		esac
     else
         # outras distribuições Linux...
         echo "Installing missing deps with: $pkg_mgr ${missing[*]}"
